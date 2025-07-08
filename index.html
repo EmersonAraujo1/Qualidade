@@ -27,6 +27,7 @@
     .dt-button { background-color: #4db8ff !important; color: black !important; border-radius: 5px; margin-bottom: 10px; font-weight: bold; }
     #contentArea { display: none; }
     #message { margin-top: 30px; font-size: 1.2rem; color: #999999; text-align: center; font-style: italic; }
+    #loading { display: none; color: #4db8ff; text-align: center; font-size: 1.2rem; font-style: italic; margin-top: 20px; }
   </style>
 </head>
 <body>
@@ -40,6 +41,7 @@
 </div>
 
 <div id="message">Carregue a planilha Excel (.xls ou .xlsx) para visualizar os dados.</div>
+<div id="loading">🔄 Carregando a planilha...</div>
 
 <div id="contentArea">
   <div class="dashboard">
@@ -86,9 +88,7 @@
     nota: ['nota final', 'nota', 'pontuação']
   };
 
-  let dados = [];
-  let dadosFiltrados = [];
-  let arquivoSelecionado = null;
+  let dados = [], dadosFiltrados = [], arquivoSelecionado = null;
   let chart1, chart2, chart3;
 
   document.getElementById('btnSelecionarArquivo').addEventListener('click', () => {
@@ -106,6 +106,9 @@
   document.getElementById('btnCarregarArquivo').addEventListener('click', () => {
     if (!arquivoSelecionado) return alert('Selecione um arquivo primeiro.');
 
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('message').style.display = 'none';
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
@@ -114,24 +117,23 @@
 
       const normalizar = str => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-const padronizar = (obj) => {
-  const novo = {};
-  const chavesNormalizadas = Object.fromEntries(
-    Object.keys(obj).map(k => [normalizar(k), k])
-  );
+      const padronizar = (obj) => {
+        const novo = {};
+        const chavesNormalizadas = Object.fromEntries(
+          Object.keys(obj).map(k => [normalizar(k), k])
+        );
 
-  for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
-    for (const s of sinonimos) {
-      const chaveOriginal = chavesNormalizadas[normalizar(s)];
-      if (chaveOriginal) {
-        novo[chavePadrao] = obj[chaveOriginal];
-        break;
-      }
-    }
-  }
-
-  return novo;
-};
+        for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
+          for (const s of sinonimos) {
+            const chaveOriginal = chavesNormalizadas[normalizar(s)];
+            if (chaveOriginal) {
+              novo[chavePadrao] = obj[chaveOriginal];
+              break;
+            }
+          }
+        }
+        return novo;
+      };
 
       dados = json.map(padronizar).filter(d => d.data && d.tipo && d.monitor);
 
@@ -139,60 +141,12 @@ const padronizar = (obj) => {
       aplicarFiltros();
       document.getElementById('contentArea').style.display = 'block';
       document.getElementById('message').style.display = 'none';
+      document.getElementById('loading').style.display = 'none';
       document.getElementById('btnCarregarArquivo').disabled = true;
       alert('Arquivo carregado com sucesso!');
     };
     reader.readAsArrayBuffer(arquivoSelecionado);
   });
-
-  function atualizarFiltros() {
-    const campos = { monitor: new Set(), tipo: new Set(), celula: new Set() };
-    dados.forEach(d => { campos.monitor.add(d.monitor); campos.tipo.add(d.tipo); campos.celula.add(d.celula); });
-    for (const [id, valores] of Object.entries(campos)) {
-      const sel = document.getElementById(id + 'Filter');
-      sel.innerHTML = '<option value="">Todos</option>';
-      [...valores].sort().forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
-    }
-  }
-
-  function aplicarFiltros() {
-    const m = document.getElementById('monitorFilter').value;
-    const t = document.getElementById('tipoFilter').value;
-    const c = document.getElementById('celulaFilter').value;
-    const di = document.getElementById('dataInicio').value;
-    const df = document.getElementById('dataFim').value;
-    dadosFiltrados = dados.filter(d => (!m || d.monitor === m) && (!t || d.tipo === t) && (!c || d.celula === c) && (!di || d.data >= di) && (!df || d.data <= df));
-    desenharGraficos(); preencherTabela(); atualizarCards();
-  }
-
-  function desenharGraficos() {
-    const ctx1 = document.getElementById('graficoTipo').getContext('2d');
-    const ctx2 = document.getElementById('graficoMonitor').getContext('2d');
-    const ctx3 = document.getElementById('graficoConformidade').getContext('2d');
-    if (chart1) chart1.destroy(); if (chart2) chart2.destroy(); if (chart3) chart3.destroy();
-    const tipo = contar('tipo'); const monitor = contar('monitor'); const conf = contar('nao_conformidade');
-    chart1 = new Chart(ctx1, { type: 'bar', data: { labels: Object.keys(tipo), datasets: [{ label: 'Por Tipo', data: Object.values(tipo), backgroundColor: '#4db8ff' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
-    chart2 = new Chart(ctx2, { type: 'bar', data: { labels: Object.keys(monitor), datasets: [{ label: 'Por Monitor', data: Object.values(monitor), backgroundColor: '#4ddb4d' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
-    chart3 = new Chart(ctx3, { type: 'doughnut', data: { labels: Object.keys(conf), datasets: [{ data: Object.values(conf), backgroundColor: ['#ff4c4c', '#4cff4c', '#999999'] }] }, options: { responsive: true, maintainAspectRatio: false } });
-  }
-
-  function contar(campo) { return dadosFiltrados.reduce((acc, d) => { acc[d[campo]] = (acc[d[campo]] || 0) + 1; return acc; }, {}); }
-
-  function preencherTabela() {
-    const tbody = document.querySelector('#tabela tbody');
-    tbody.innerHTML = '';
-    dadosFiltrados.forEach(d => {
-      tbody.innerHTML += `<tr><td>${d.data}</td><td>${d.tipo}</td><td>${d.celula}</td><td>${d.monitor}</td><td>${d.nao_conformidade}</td><td>${d.nota}</td></tr>`;
-    });
-    if ($.fn.DataTable.isDataTable('#tabela')) $('#tabela').DataTable().clear().destroy();
-    $('#tabela').DataTable({ dom: 'Bfrtip', buttons: ['excelHtml5'], paging: true, responsive: true });
-  }
-
-  function atualizarCards() {
-    document.getElementById('card-total').textContent = `Total: ${dadosFiltrados.length}`;
-    document.getElementById('card-tipos').textContent = `Tipos: ${new Set(dadosFiltrados.map(d => d.tipo)).size}`;
-    document.getElementById('card-conformidade').textContent = `Conformidades: ${contar('nao_conformidade')['Sim'] || 0}`;
-  }
 </script>
 </body>
 </html>
