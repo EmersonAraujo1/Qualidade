@@ -14,21 +14,78 @@
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css" />
   <style>
-    body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; }
-    h1 { color: #4db8ff; margin-bottom: 10px; }
-    .dashboard { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
-    .card { background: #1e1e1e; padding: 15px; border-radius: 12px; box-shadow: 0 0 10px #000; flex: 1 1 150px; text-align: center; min-width: 150px; }
-    .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center; }
-    .filters select, .filters input, .filters button { padding: 8px 12px; border-radius: 5px; border: none; background-color: #333; color: #e0e0e0; font-size: 0.9rem; cursor: pointer; min-width: 150px; transition: background-color 0.3s; }
-    .filters button:hover { background-color: #4db8ff; color: black; }
+    /* Básico + estilo corporativo */
+    body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+    h1 { color: #4db8ff; margin-bottom: 10px; text-align: center; }
+    .dashboard { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+    .card { background: #1e1e1e; padding: 15px; border-radius: 12px; box-shadow: 0 0 10px #000; flex: 1 1 150px; text-align: center; min-width: 150px; transition: background-color 0.3s ease; cursor: default; }
+    .card:hover { background-color: #263238; }
+    .filters, .filters-avancados { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center; justify-content: center; }
+    select, input[type=date], button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: none;
+      background-color: #333;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      cursor: pointer;
+      min-width: 160px;
+      transition: background-color 0.3s ease;
+    }
+    select:hover, input[type=date]:hover, button:hover {
+      background-color: #4db8ff;
+      color: #121212;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     #fileInput { display: none; }
-    canvas { margin-bottom: 30px; background-color: #1e1e1e; padding: 10px; border-radius: 10px; max-width: 100%; height: 300px !important; }
+    canvas { margin-bottom: 30px; background-color: #1e1e1e; padding: 15px; border-radius: 12px; max-width: 100%; height: 320px !important; }
     table { background-color: #1e1e1e !important; color: white !important; border-radius: 10px; }
-    .dt-button { background-color: #4db8ff !important; color: black !important; border-radius: 5px; margin-bottom: 10px; font-weight: bold; }
+    .dt-button { background-color: #4db8ff !important; color: black !important; border-radius: 6px; margin-bottom: 10px; font-weight: bold; }
     #contentArea { display: none; }
     #message { margin-top: 30px; font-size: 1.2rem; color: #999999; text-align: center; font-style: italic; }
-    #progressContainer { width: 100%; background: #333; border-radius: 10px; overflow: hidden; display: none; margin-top: 20px; height: 25px; }
-    #progressBar { height: 100%; width: 0; background: linear-gradient(90deg, #4db8ff, #2ecc71); color: #fff; text-align: center; line-height: 25px; font-weight: bold; transition: width 0.2s ease-in-out; }
+    #progressContainer { width: 100%; background: #333; border-radius: 10px; overflow: hidden; display: none; margin-top: 20px; height: 28px; }
+    #progressBar {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, #4db8ff, #2ecc71);
+      color: #fff;
+      text-align: center;
+      line-height: 28px;
+      font-weight: 700;
+      transition: width 0.2s ease-in-out;
+      user-select: none;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.05em;
+    }
+
+    /* Títulos de seção */
+    .secao-titulo {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #4db8ff;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #4db8ff;
+      padding-bottom: 5px;
+      text-align: center;
+      user-select: none;
+    }
+
+    /* Container filtros avançados de cada gráfico */
+    .filtros-grafico {
+      background: #212121;
+      border-radius: 10px;
+      padding: 10px 15px;
+      margin-bottom: 25px;
+      box-shadow: 0 0 15px rgba(0, 77, 255, 0.3);
+      max-width: 1100px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
   </style>
 </head>
 <body>
@@ -48,12 +105,14 @@
 <div id="message">Carregue a planilha Excel (.xls ou .xlsx) para visualizar os dados.</div>
 
 <div id="contentArea">
+
   <div class="dashboard">
-    <div class="card" id="card-total">Total: 0</div>
-    <div class="card" id="card-tipos">Tipos: 0</div>
-    <div class="card" id="card-conformidade">Conformidades: 0</div>
+    <div class="card" id="card-total" title="Total de registros filtrados">Total: 0</div>
+    <div class="card" id="card-tipos" title="Tipos únicos encontrados">Tipos: 0</div>
+    <div class="card" id="card-conformidade" title="Quantidade de conformidades 'Sim'">Conformidades: 0</div>
   </div>
 
+  <!-- Filtros gerais -->
   <div class="filters">
     <select id="monitorFilter"><option value="">Todos os Monitores</option></select>
     <select id="tipoFilter"><option value="">Todos os Tipos</option></select>
@@ -63,10 +122,42 @@
     <button onclick="aplicarFiltros()">Aplicar Filtros</button>
   </div>
 
-  <!-- Novos gráficos para sua solicitação -->
-  <canvas id="graficoMonitorResponsavel" style="height: 350px;"></canvas>
-  <canvas id="graficoConcordanciaFeedback" style="height: 350px;"></canvas>
-  <canvas id="graficoMediaNota" style="height: 350px;"></canvas>
+  <!-- Filtros avançados para cada gráfico -->
+
+  <div class="filtros-grafico" id="filtros-monitor-responsavel">
+    <div class="secao-titulo">Filtros: Monitorias por Nome e Responsável - Cargo</div>
+    <div class="filters-avancados">
+      <select id="fr-monitorFilter"><option value="">Todos Monitores</option></select>
+      <select id="fr-celulaFilter"><option value="">Todas Células</option></select>
+      <button onclick="filtrarGraficoMonitorResponsavel()">Aplicar</button>
+    </div>
+  </div>
+
+  <canvas id="graficoMonitorResponsavel"></canvas>
+
+  <div class="filtros-grafico" id="filtros-concordancia-feedback">
+    <div class="secao-titulo">Filtros: Concordância com o Feedback</div>
+    <div class="filters-avancados">
+      <select id="fc-monitorFilter"><option value="">Todos Monitores</option></select>
+      <select id="fc-celulaFilter"><option value="">Todas Células</option></select>
+      <button onclick="filtrarGraficoConcordancia()">Aplicar</button>
+    </div>
+  </div>
+
+  <canvas id="graficoConcordanciaFeedback"></canvas>
+
+  <div class="filtros-grafico" id="filtros-media-nota">
+    <div class="secao-titulo">Filtros: Média de Nota Final por Faixa %</div>
+    <div class="filters-avancados">
+      <select id="fn-monitorFilter"><option value="">Todos Monitores</option></select>
+      <select id="fn-celulaFilter"><option value="">Todas Células</option></select>
+      <button onclick="filtrarGraficoMediaNota()">Aplicar</button>
+    </div>
+  </div>
+
+  <canvas id="graficoMediaNota"></canvas>
+
+  <!-- Gráficos gerais -->
 
   <canvas id="graficoTipo"></canvas>
   <canvas id="graficoMonitor"></canvas>
@@ -85,6 +176,7 @@
     </thead>
     <tbody></tbody>
   </table>
+
 </div>
 
 <script>
@@ -99,9 +191,37 @@
 
   let dados = [];
   let dadosFiltrados = [];
+
+  // Dados para filtros avançados (independentes)
+  let dadosGraficoMonitorResponsavel = [];
+  let dadosGraficoConcordancia = [];
+  let dadosGraficoMediaNota = [];
+
   let arquivoSelecionado = null;
+
   let chartTipo, chartMonitor, chartConformidade;
   let chartMonitorResponsavel, chartConcordanciaFeedback, chartMediaNota;
+
+  // Utilitário para normalizar texto
+  function normalizar(str) {
+    return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  }
+
+  // Função para padronizar colunas da planilha
+  function padronizar(obj) {
+    const novo = {};
+    const chavesNormalizadas = Object.fromEntries(Object.keys(obj).map(k => [normalizar(k), k]));
+    for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
+      for (const s of sinonimos) {
+        const chaveOriginal = chavesNormalizadas[normalizar(s)];
+        if (chaveOriginal) {
+          novo[chavePadrao] = obj[chaveOriginal];
+          break;
+        }
+      }
+    }
+    return novo;
+  }
 
   document.getElementById('btnSelecionarArquivo').addEventListener('click', () => {
     document.getElementById('fileInput').click();
@@ -130,23 +250,8 @@
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonFull = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
+      // Limitando a 5000 linhas para performance
       const json = jsonFull.slice(0, 5000);
-      const normalizar = str => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
-      const padronizar = (obj) => {
-        const novo = {};
-        const chavesNormalizadas = Object.fromEntries(Object.keys(obj).map(k => [normalizar(k), k]));
-        for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
-          for (const s of sinonimos) {
-            const chaveOriginal = chavesNormalizadas[normalizar(s)];
-            if (chaveOriginal) {
-              novo[chavePadrao] = obj[chaveOriginal];
-              break;
-            }
-          }
-        }
-        return novo;
-      };
 
       dados = json.map((item, idx) => {
         const percent = Math.round((idx + 1) / json.length * 100);
@@ -156,7 +261,8 @@
       }).filter(d => d.data && d.tipo && d.monitor);
 
       setTimeout(() => {
-        atualizarFiltros();
+        atualizarFiltrosGerais();
+        atualizarFiltrosAvancados();
         aplicarFiltros();
         document.getElementById('contentArea').style.display = 'block';
         document.getElementById('message').style.display = 'none';
@@ -169,9 +275,15 @@
     reader.readAsArrayBuffer(arquivoSelecionado);
   });
 
-  function atualizarFiltros() {
+  // Atualiza filtros gerais
+  function atualizarFiltrosGerais() {
     const campos = { monitor: new Set(), tipo: new Set(), celula: new Set() };
-    dados.forEach(d => { campos.monitor.add(d.monitor); campos.tipo.add(d.tipo); campos.celula.add(d.celula); });
+    dados.forEach(d => {
+      campos.monitor.add(d.monitor);
+      campos.tipo.add(d.tipo);
+      campos.celula.add(d.celula);
+    });
+
     for (const [id, valores] of Object.entries(campos)) {
       const sel = document.getElementById(id + 'Filter');
       sel.innerHTML = '<option value="">Todos</option>';
@@ -179,29 +291,53 @@
     }
   }
 
+  // Atualiza filtros avançados (para cada gráfico)
+  function atualizarFiltrosAvancados() {
+    // Extrair sets para filtros avançados
+    const monitores = new Set();
+    const celulas = new Set();
+    dados.forEach(d => { monitores.add(d.monitor); celulas.add(d.celula); });
+
+    // Função para atualizar select por ID e opções
+    function atualizarSelect(id, valores) {
+      const sel = document.getElementById(id);
+      sel.innerHTML = '<option value="">Todos</option>';
+      [...valores].sort().forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
+    }
+
+    ['fr-monitorFilter', 'fc-monitorFilter', 'fn-monitorFilter'].forEach(id => atualizarSelect(id, monitores));
+    ['fr-celulaFilter', 'fc-celulaFilter', 'fn-celulaFilter'].forEach(id => atualizarSelect(id, celulas));
+  }
+
+  // Aplica filtro geral para tabela e gráficos gerais
   function aplicarFiltros() {
     const m = document.getElementById('monitorFilter').value;
     const t = document.getElementById('tipoFilter').value;
     const c = document.getElementById('celulaFilter').value;
     const di = document.getElementById('dataInicio').value;
     const df = document.getElementById('dataFim').value;
-    dadosFiltrados = dados.filter(d => (!m || d.monitor === m) && (!t || d.tipo === t) && (!c || d.celula === c) && (!di || d.data >= di) && (!df || d.data <= df));
-    desenharGraficos();
+    dadosFiltrados = dados.filter(d =>
+      (!m || d.monitor === m) &&
+      (!t || d.tipo === t) &&
+      (!c || d.celula === c) &&
+      (!di || d.data >= di) &&
+      (!df || d.data <= df)
+    );
+    desenharGraficosGerais();
     preencherTabela();
     atualizarCards();
   }
 
-  // Função para contar ocorrências por campo
-  function contar(campo) {
-    return dadosFiltrados.reduce((acc, d) => {
+  // Contar ocorrências por campo (genérica)
+  function contar(campo, dataset = dadosFiltrados) {
+    return dataset.reduce((acc, d) => {
       acc[d[campo]] = (acc[d[campo]] || 0) + 1;
       return acc;
     }, {});
   }
 
-  // Função para calcular média da nota final agrupada em faixas %
-  function calcularMediaPorFaixa() {
-    // Faixas de nota (0-20, 21-40, 41-60, 61-80, 81-100)
+  // Média da nota por faixa (0-20,21-40,...)
+  function calcularMediaPorFaixa(dataset) {
     const faixas = [
       { label: '0-20%', min: 0, max: 20, total: 0, count: 0 },
       { label: '21-40%', min: 21, max: 40, total: 0, count: 0 },
@@ -210,7 +346,7 @@
       { label: '81-100%', min: 81, max: 100, total: 0, count: 0 }
     ];
 
-    dadosFiltrados.forEach(d => {
+    dataset.forEach(d => {
       let nota = Number(d.nota);
       if (!isNaN(nota)) {
         const faixa = faixas.find(f => nota >= f.min && nota <= f.max);
@@ -227,45 +363,19 @@
       labels.push(f.label);
       medias.push(f.count ? (f.total / f.count).toFixed(2) : 0);
     });
-
     return { labels, medias };
   }
 
-  function desenharGraficos() {
-    // Apaga gráficos antigos se existirem
+  // Desenha gráficos gerais (tipo, monitor, conformidade)
+  function desenharGraficosGerais() {
     if (chartTipo) chartTipo.destroy();
     if (chartMonitor) chartMonitor.destroy();
     if (chartConformidade) chartConformidade.destroy();
-    if (chartMonitorResponsavel) chartMonitorResponsavel.destroy();
-    if (chartConcordanciaFeedback) chartConcordanciaFeedback.destroy();
-    if (chartMediaNota) chartMediaNota.destroy();
 
-    // Contagens para gráficos existentes
     const tipo = contar('tipo');
     const monitor = contar('monitor');
     const conf = contar('nao_conformidade');
 
-    // Novo gráfico: Quantidade de monitorias por Nome e responsável - cargo
-    // Construir mapa: chave = "Nome - Célula" (monitor + " - " + celula)
-    const monitorResponsavelMap = {};
-    dadosFiltrados.forEach(d => {
-      const chave = `${d.monitor} - ${d.celula || 'Sem Célula'}`;
-      monitorResponsavelMap[chave] = (monitorResponsavelMap[chave] || 0) + 1;
-    });
-
-    // Novo gráfico: Quantidade de colaboradores que concordam ou não com feedback
-    const concordanciaCount = { 'Sim': 0, 'Não': 0, 'Outro': 0 };
-    dadosFiltrados.forEach(d => {
-      const val = (d.nao_conformidade || '').toString().toLowerCase();
-      if (val === 'sim') concordanciaCount['Sim']++;
-      else if (val === 'não' || val === 'nao') concordanciaCount['Não']++;
-      else concordanciaCount['Outro']++;
-    });
-
-    // Novo gráfico: Média de nota final por faixa
-    const mediaFaixa = calcularMediaPorFaixa();
-
-    // Gráfico Tipo (barra vertical)
     const ctxTipo = document.getElementById('graficoTipo').getContext('2d');
     chartTipo = new Chart(ctxTipo, {
       type: 'bar',
@@ -281,11 +391,10 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
       }
     });
 
-    // Gráfico Monitor (barra vertical)
     const ctxMonitor = document.getElementById('graficoMonitor').getContext('2d');
     chartMonitor = new Chart(ctxMonitor, {
       type: 'bar',
@@ -301,11 +410,10 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
       }
     });
 
-    // Gráfico Conformidade (doughnut)
     const ctxConf = document.getElementById('graficoConformidade').getContext('2d');
     chartConformidade = new Chart(ctxConf, {
       type: 'doughnut',
@@ -321,16 +429,35 @@
         maintainAspectRatio: false,
       }
     });
+  }
 
-    // Gráfico 1: Quantidade de monitorias por Nome e responsável - cargo (barra horizontal)
+  // Funções para filtros avançados e gráficos independentes
+
+  // Monitorias por Nome - Cargo (barra horizontal)
+  function filtrarGraficoMonitorResponsavel() {
+    const m = document.getElementById('fr-monitorFilter').value;
+    const c = document.getElementById('fr-celulaFilter').value;
+    dadosGraficoMonitorResponsavel = dados.filter(d =>
+      (!m || d.monitor === m) &&
+      (!c || d.celula === c)
+    );
+
+    // Mapear "monitor - célula" para contagem
+    const mapMR = {};
+    dadosGraficoMonitorResponsavel.forEach(d => {
+      const key = `${d.monitor} - ${d.celula || 'Sem Célula'}`;
+      mapMR[key] = (mapMR[key] || 0) + 1;
+    });
+
+    if (chartMonitorResponsavel) chartMonitorResponsavel.destroy();
     const ctxMR = document.getElementById('graficoMonitorResponsavel').getContext('2d');
     chartMonitorResponsavel = new Chart(ctxMR, {
       type: 'bar',
       data: {
-        labels: Object.keys(monitorResponsavelMap),
+        labels: Object.keys(mapMR),
         datasets: [{
           label: 'Monitorias (Nome - Cargo)',
-          data: Object.values(monitorResponsavelMap),
+          data: Object.values(mapMR),
           backgroundColor: '#4db8ff'
         }]
       },
@@ -339,11 +466,29 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true, ticks: { precision:0 } } }
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
       }
     });
+  }
 
-    // Gráfico 2: Concordância com feedback (pizza)
+  // Concordância com Feedback (pizza)
+  function filtrarGraficoConcordancia() {
+    const m = document.getElementById('fc-monitorFilter').value;
+    const c = document.getElementById('fc-celulaFilter').value;
+    dadosGraficoConcordancia = dados.filter(d =>
+      (!m || d.monitor === m) &&
+      (!c || d.celula === c)
+    );
+
+    const concordanciaCount = { 'Sim': 0, 'Não': 0, 'Outro': 0 };
+    dadosGraficoConcordancia.forEach(d => {
+      const val = (d.nao_conformidade || '').toLowerCase();
+      if (val === 'sim') concordanciaCount['Sim']++;
+      else if (val === 'não' || val === 'nao') concordanciaCount['Não']++;
+      else concordanciaCount['Outro']++;
+    });
+
+    if (chartConcordanciaFeedback) chartConcordanciaFeedback.destroy();
     const ctxCF = document.getElementById('graficoConcordanciaFeedback').getContext('2d');
     chartConcordanciaFeedback = new Chart(ctxCF, {
       type: 'pie',
@@ -359,8 +504,20 @@
         maintainAspectRatio: false,
       }
     });
+  }
 
-    // Gráfico 3: Média de nota final por faixa (barra vertical)
+  // Média de Nota Final por faixa (barra vertical)
+  function filtrarGraficoMediaNota() {
+    const m = document.getElementById('fn-monitorFilter').value;
+    const c = document.getElementById('fn-celulaFilter').value;
+    dadosGraficoMediaNota = dados.filter(d =>
+      (!m || d.monitor === m) &&
+      (!c || d.celula === c)
+    );
+
+    const mediaFaixa = calcularMediaPorFaixa(dadosGraficoMediaNota);
+
+    if (chartMediaNota) chartMediaNota.destroy();
     const ctxMN = document.getElementById('graficoMediaNota').getContext('2d');
     chartMediaNota = new Chart(ctxMN, {
       type: 'bar',
@@ -381,21 +538,25 @@
     });
   }
 
+  // Atualiza tabela HTML com os dados filtrados gerais
   function preencherTabela() {
     const tbody = document.querySelector('#tabela tbody');
     tbody.innerHTML = '';
     dadosFiltrados.forEach(d => {
       tbody.innerHTML += `<tr><td>${d.data}</td><td>${d.tipo}</td><td>${d.celula}</td><td>${d.monitor}</td><td>${d.nao_conformidade}</td><td>${d.nota}</td></tr>`;
     });
+
     if ($.fn.DataTable.isDataTable('#tabela')) $('#tabela').DataTable().clear().destroy();
     $('#tabela').DataTable({ dom: 'Bfrtip', buttons: ['excelHtml5'], paging: true, responsive: true });
   }
 
+  // Atualiza os cards no topo com números atualizados
   function atualizarCards() {
     document.getElementById('card-total').textContent = `Total: ${dadosFiltrados.length}`;
     document.getElementById('card-tipos').textContent = `Tipos: ${new Set(dadosFiltrados.map(d => d.tipo)).size}`;
     document.getElementById('card-conformidade').textContent = `Conformidades: ${contar('nao_conformidade')['Sim'] || 0}`;
   }
 </script>
+
 </body>
 </html>
