@@ -27,9 +27,8 @@
     .dt-button { background-color: #4db8ff !important; color: black !important; border-radius: 5px; margin-bottom: 10px; font-weight: bold; }
     #contentArea { display: none; }
     #message { margin-top: 30px; font-size: 1.2rem; color: #999999; text-align: center; font-style: italic; }
-    #loadingBar { display:none; text-align:center; margin-top: 20px; }
-    #loadingBar div { width: 100%; background: #444; border-radius: 10px; overflow: hidden; }
-    #progressBar { width: 0%; background: #4db8ff; height: 20px; transition: width 0.2s; }
+    #loadingBar { display: none; height: 25px; width: 100%; background-color: #333; border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+    #loadingProgress { height: 100%; width: 0%; background-color: #4db8ff; text-align: center; line-height: 25px; color: black; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -42,11 +41,8 @@
   <input type="file" id="fileInput" accept=".xlsx,.xls" />
 </div>
 
+<div id="loadingBar"><div id="loadingProgress">0%</div></div>
 <div id="message">Carregue a planilha Excel (.xls ou .xlsx) para visualizar os dados.</div>
-<div id="loadingBar">
-  <div><div id="progressBar"></div></div>
-  <span id="progressText">0%</span>
-</div>
 
 <div id="contentArea">
   <div class="dashboard">
@@ -93,6 +89,25 @@
     nota: ['nota final', 'nota', 'pontuação']
   };
 
+  const normalizar = str => str.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+  const padronizar = (obj) => {
+    const novo = {};
+    const chavesNormalizadas = Object.fromEntries(
+      Object.keys(obj).map(k => [normalizar(k), k])
+    );
+
+    for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
+      for (const s of sinonimos) {
+        const chaveOriginal = chavesNormalizadas[normalizar(s)];
+        if (chaveOriginal) {
+          novo[chavePadrao] = obj[chaveOriginal];
+          break;
+        }
+      }
+    }
+    return novo;
+  };
+
   let dados = [];
   let dadosFiltrados = [];
   let arquivoSelecionado = null;
@@ -113,74 +128,100 @@
   document.getElementById('btnCarregarArquivo').addEventListener('click', () => {
     if (!arquivoSelecionado) return alert('Selecione um arquivo primeiro.');
 
+    const progressBar = document.getElementById('loadingProgress');
+    document.getElementById('loadingBar').style.display = 'block';
+    progressBar.style.width = '0%';
+    progressBar.textContent = '0%';
+
     const reader = new FileReader();
     reader.onload = (e) => {
-      document.getElementById('message').textContent = 'Carregando planilha...';
-      document.getElementById('loadingBar').style.display = 'block';
-      document.getElementById('progressBar').style.width = '0%';
-      document.getElementById('progressText').textContent = '0%';
+      const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-      setTimeout(() => {
-        const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonCompleto = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-        const json = jsonCompleto.slice(0, 5000);
+      const total = Math.min(rawData.length, 5000);
+      const batchSize = 100;
+      let start = 0;
+      dados = [];
 
-        const normalizar = str => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      function processarLote() {
+        const end = Math.min(start + batchSize, total);
+        for (let i = start; i < end; i++) {
+          dados.push(padronizar(rawData[i]));
+        }
+        const percent = Math.floor((end / total) * 100);
+        progressBar.style.width = `${percent}%`;
+        progressBar.textContent = `${percent}%`;
 
-        const padronizar = (obj) => {
-          const novo = {};
-          const chavesNormalizadas = Object.fromEntries(
-            Object.keys(obj).map(k => [normalizar(k), k])
-          );
-
-          for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
-            for (const s of sinonimos) {
-              const chaveOriginal = chavesNormalizadas[normalizar(s)];
-              if (chaveOriginal) {
-                novo[chavePadrao] = obj[chaveOriginal];
-                break;
-              }
-            }
-          }
-
-          return novo;
-        };
-
-        let progresso = 0;
-        const total = json.length;
-        dados = [];
-
-        const processarLote = () => {
-          const lote = 100;
-          for (let i = 0; i < lote && progresso < total; i++, progresso++) {
-            const registro = json[progresso];
-            const pad = padronizar(registro);
-            if (pad.data && pad.tipo && pad.monitor) dados.push(pad);
-          }
-
-          const pct = Math.floor((progresso / total) * 100);
-          document.getElementById('progressBar').style.width = pct + '%';
-          document.getElementById('progressText').textContent = pct + '%';
-
-          if (progresso < total) {
-            setTimeout(processarLote, 5);
-          } else {
-            atualizarFiltros();
-            aplicarFiltros();
+        start += batchSize;
+        if (start < total) {
+          setTimeout(processarLote, 10);
+        } else {
+          setTimeout(() => {
+            document.getElementById('loadingBar').style.display = 'none';
             document.getElementById('contentArea').style.display = 'block';
             document.getElementById('message').style.display = 'none';
-            document.getElementById('loadingBar').style.display = 'none';
             document.getElementById('btnCarregarArquivo').disabled = true;
+            atualizarFiltros();
+            aplicarFiltros();
             alert('Arquivo carregado com sucesso!');
-          }
-        };
+          }, 200);
+        }
+      }
 
-        processarLote();
-      }, 100);
+      processarLote();
     };
     reader.readAsArrayBuffer(arquivoSelecionado);
   });
+
+  function atualizarFiltros() {
+    const campos = { monitor: new Set(), tipo: new Set(), celula: new Set() };
+    dados.forEach(d => { campos.monitor.add(d.monitor); campos.tipo.add(d.tipo); campos.celula.add(d.celula); });
+    for (const [id, valores] of Object.entries(campos)) {
+      const sel = document.getElementById(id + 'Filter');
+      sel.innerHTML = '<option value="">Todos</option>';
+      [...valores].sort().forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
+    }
+  }
+
+  function aplicarFiltros() {
+    const m = document.getElementById('monitorFilter').value;
+    const t = document.getElementById('tipoFilter').value;
+    const c = document.getElementById('celulaFilter').value;
+    const di = document.getElementById('dataInicio').value;
+    const df = document.getElementById('dataFim').value;
+    dadosFiltrados = dados.filter(d => (!m || d.monitor === m) && (!t || d.tipo === t) && (!c || d.celula === c) && (!di || d.data >= di) && (!df || d.data <= df));
+    desenharGraficos(); preencherTabela(); atualizarCards();
+  }
+
+  function desenharGraficos() {
+    const ctx1 = document.getElementById('graficoTipo').getContext('2d');
+    const ctx2 = document.getElementById('graficoMonitor').getContext('2d');
+    const ctx3 = document.getElementById('graficoConformidade').getContext('2d');
+    if (chart1) chart1.destroy(); if (chart2) chart2.destroy(); if (chart3) chart3.destroy();
+    const tipo = contar('tipo'); const monitor = contar('monitor'); const conf = contar('nao_conformidade');
+    chart1 = new Chart(ctx1, { type: 'bar', data: { labels: Object.keys(tipo), datasets: [{ label: 'Por Tipo', data: Object.values(tipo), backgroundColor: '#4db8ff' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+    chart2 = new Chart(ctx2, { type: 'bar', data: { labels: Object.keys(monitor), datasets: [{ label: 'Por Monitor', data: Object.values(monitor), backgroundColor: '#4ddb4d' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+    chart3 = new Chart(ctx3, { type: 'doughnut', data: { labels: Object.keys(conf), datasets: [{ data: Object.values(conf), backgroundColor: ['#ff4c4c', '#4cff4c', '#999999'] }] }, options: { responsive: true, maintainAspectRatio: false } });
+  }
+
+  function contar(campo) { return dadosFiltrados.reduce((acc, d) => { acc[d[campo]] = (acc[d[campo]] || 0) + 1; return acc; }, {}); }
+
+  function preencherTabela() {
+    const tbody = document.querySelector('#tabela tbody');
+    tbody.innerHTML = '';
+    dadosFiltrados.forEach(d => {
+      tbody.innerHTML += `<tr><td>${d.data}</td><td>${d.tipo}</td><td>${d.celula}</td><td>${d.monitor}</td><td>${d.nao_conformidade}</td><td>${d.nota}</td></tr>`;
+    });
+    if ($.fn.DataTable.isDataTable('#tabela')) $('#tabela').DataTable().clear().destroy();
+    $('#tabela').DataTable({ dom: 'Bfrtip', buttons: ['excelHtml5'], paging: true, responsive: true });
+  }
+
+  function atualizarCards() {
+    document.getElementById('card-total').textContent = `Total: ${dadosFiltrados.length}`;
+    document.getElementById('card-tipos').textContent = `Tipos: ${new Set(dadosFiltrados.map(d => d.tipo)).size}`;
+    document.getElementById('card-conformidade').textContent = `Conformidades: ${contar('nao_conformidade')['Sim'] || 0}`;
+  }
 </script>
 </body>
 </html>
