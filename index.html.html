@@ -86,49 +86,64 @@
       margin-bottom: 10px;
       font-weight: bold;
     }
+    #contentArea {
+      display: none;
+    }
+    #message {
+      margin-top: 30px;
+      font-size: 1.2rem;
+      color: #999999;
+      text-align: center;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
 
 <h1>📊 Painel de Monitorias - CASA</h1>
 
-<div class="dashboard">
-  <div class="card" id="card-total">Total: 0</div>
-  <div class="card" id="card-tipos">Tipos: 0</div>
-  <div class="card" id="card-conformidade">Conformidades: 0</div>
-</div>
-
 <div class="filters">
   <button id="btnSelecionarArquivo">Inserir arquivo</button>
   <button id="btnCarregarArquivo" disabled>Carregar arquivo</button>
-
   <input type="file" id="fileInput" accept=".xlsx, .xls" />
-
-  <select id="monitorFilter"><option value="">Todos os Monitores</option></select>
-  <select id="tipoFilter"><option value="">Todos os Tipos</option></select>
-  <select id="celulaFilter"><option value="">Todas as Células</option></select>
-  <input type="date" id="dataInicio" />
-  <input type="date" id="dataFim" />
-  <button onclick="aplicarFiltros()">Aplicar Filtros</button>
 </div>
 
-<canvas id="graficoTipo"></canvas>
-<canvas id="graficoMonitor"></canvas>
-<canvas id="graficoConformidade"></canvas>
+<div id="message">Carregue a planilha Excel para visualizar os dados.</div>
 
-<table id="tabela" class="display nowrap" style="width:100%">
-  <thead>
-    <tr>
-      <th>Data</th>
-      <th>Tipo</th>
-      <th>Célula</th>
-      <th>Monitor</th>
-      <th>Conformidade</th>
-      <th>Nota</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+<div id="contentArea">
+  <div class="dashboard">
+    <div class="card" id="card-total">Total: 0</div>
+    <div class="card" id="card-tipos">Tipos: 0</div>
+    <div class="card" id="card-conformidade">Conformidades: 0</div>
+  </div>
+
+  <div class="filters" style="margin-bottom: 30px;">
+    <select id="monitorFilter"><option value="">Todos os Monitores</option></select>
+    <select id="tipoFilter"><option value="">Todos os Tipos</option></select>
+    <select id="celulaFilter"><option value="">Todas as Células</option></select>
+    <input type="date" id="dataInicio" />
+    <input type="date" id="dataFim" />
+    <button onclick="aplicarFiltros()">Aplicar Filtros</button>
+  </div>
+
+  <canvas id="graficoTipo"></canvas>
+  <canvas id="graficoMonitor"></canvas>
+  <canvas id="graficoConformidade"></canvas>
+
+  <table id="tabela" class="display nowrap" style="width:100%">
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Tipo</th>
+        <th>Célula</th>
+        <th>Monitor</th>
+        <th>Conformidade</th>
+        <th>Nota</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
 
 <script>
   let dados = [];
@@ -136,7 +151,10 @@
   let arquivoSelecionado = null;
   let chart1, chart2, chart3;
 
-  // Botão para abrir seletor de arquivo
+  const contentArea = document.getElementById('contentArea');
+  const message = document.getElementById('message');
+
+  // Abrir seletor de arquivo
   document.getElementById('btnSelecionarArquivo').addEventListener('click', () => {
     document.getElementById('fileInput').click();
   });
@@ -152,7 +170,7 @@
     }
   });
 
-  // Função para carregar arquivo e atualizar dados e gráficos
+  // Carregar arquivo e atualizar dados, gráficos e tabela
   document.getElementById('btnCarregarArquivo').addEventListener('click', () => {
     if (!arquivoSelecionado) return alert('Selecione um arquivo primeiro.');
 
@@ -165,7 +183,6 @@
       const worksheet = workbook.Sheets[firstSheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, {defval: ''});
 
-      // Limpar dados antigos e substituir pelos novos
       dados = jsonData.map(row => ({
         data: row['Data'] || row['data'] || '',
         tipo: row['Tipo'] || row['tipo'] || '',
@@ -181,6 +198,11 @@
 
       atualizarFiltros();
       aplicarFiltros();
+
+      // Mostrar conteúdo, esconder mensagem inicial
+      contentArea.style.display = 'block';
+      message.style.display = 'none';
+
       alert('Arquivo carregado com sucesso!');
     };
     reader.readAsArrayBuffer(arquivoSelecionado);
@@ -355,10 +377,7 @@
     document.getElementById('card-conformidade').textContent = `Conformidades: ${contar("nao_conformidade")["Sim"] || 0}`;
   }
 
-  // Inicializa com dados vazios
-  atualizarFiltros();
-  aplicarFiltros();
-
+  // Inicial: esconder conteúdo (já feito no CSS)
 </script>
 
 </body>
