@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css" />
   <style>
+    /* Seu CSS anterior... */
     body {
       background-color: #121212;
       color: #e0e0e0;
@@ -59,9 +60,14 @@
       min-width: 150px;
       transition: background-color 0.3s;
     }
-    .filters button:hover {
+    .filters button:hover:not(:disabled) {
       background-color: #4db8ff;
       color: black;
+    }
+    .filters button:disabled {
+      background-color: #555;
+      cursor: not-allowed;
+      color: #999;
     }
     #fileInput {
       display: none;
@@ -96,6 +102,17 @@
       text-align: center;
       font-style: italic;
     }
+
+    @media(max-width: 600px) {
+      .filters select,
+      .filters input,
+      .filters button {
+        min-width: 100%;
+      }
+      .dashboard {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 <body>
@@ -123,7 +140,7 @@
     <select id="celulaFilter"><option value="">Todas as Células</option></select>
     <input type="date" id="dataInicio" />
     <input type="date" id="dataFim" />
-    <button onclick="aplicarFiltros()">Aplicar Filtros</button>
+    <button id="btnAplicarFiltros">Aplicar Filtros</button>
   </div>
 
   <canvas id="graficoTipo"></canvas>
@@ -153,35 +170,38 @@
 
   const contentArea = document.getElementById('contentArea');
   const message = document.getElementById('message');
+  const btnCarregarArquivo = document.getElementById('btnCarregarArquivo');
+  const btnAplicarFiltros = document.getElementById('btnAplicarFiltros');
 
-  // Abrir seletor de arquivo
   document.getElementById('btnSelecionarArquivo').addEventListener('click', () => {
     document.getElementById('fileInput').click();
   });
 
-  // Detectar arquivo selecionado e validar extensão
   document.getElementById('fileInput').addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
       const file = e.target.files[0];
       const ext = file.name.split('.').pop().toLowerCase();
       if (ext === 'xls' || ext === 'xlsx') {
         arquivoSelecionado = file;
-        document.getElementById('btnCarregarArquivo').disabled = false;
+        btnCarregarArquivo.disabled = false;
       } else {
         alert('Por favor, selecione um arquivo Excel válido (.xls ou .xlsx)');
         e.target.value = '';
         arquivoSelecionado = null;
-        document.getElementById('btnCarregarArquivo').disabled = true;
+        btnCarregarArquivo.disabled = true;
       }
     } else {
       arquivoSelecionado = null;
-      document.getElementById('btnCarregarArquivo').disabled = true;
+      btnCarregarArquivo.disabled = true;
     }
   });
 
-  // Carregar arquivo e atualizar dados, gráficos e tabela
-  document.getElementById('btnCarregarArquivo').addEventListener('click', () => {
+  btnCarregarArquivo.addEventListener('click', () => {
     if (!arquivoSelecionado) return alert('Selecione um arquivo primeiro.');
+
+    btnCarregarArquivo.disabled = true;
+    message.textContent = 'Carregando arquivo, aguarde...';
+    message.style.color = '#4db8ff';
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -203,19 +223,33 @@
 
       arquivoSelecionado = null;
       document.getElementById('fileInput').value = '';
-      document.getElementById('btnCarregarArquivo').disabled = true;
+
+      if (dados.length === 0) {
+        message.textContent = 'Nenhum dado válido encontrado no arquivo.';
+        message.style.color = '#ff4c4c';
+        contentArea.style.display = 'none';
+        return;
+      }
 
       atualizarFiltros();
       aplicarFiltros();
 
-      // Mostrar conteúdo, esconder mensagem inicial
       contentArea.style.display = 'block';
       message.style.display = 'none';
 
+      btnAplicarFiltros.disabled = false;
       alert('Arquivo carregado com sucesso!');
+    };
+    reader.onerror = () => {
+      alert('Erro ao ler o arquivo. Tente novamente.');
+      btnCarregarArquivo.disabled = false;
+      message.textContent = 'Carregue a planilha Excel (.xls ou .xlsx) para visualizar os dados.';
+      message.style.color = '#999';
     };
     reader.readAsArrayBuffer(arquivoSelecionado);
   });
+
+  btnAplicarFiltros.addEventListener('click', aplicarFiltros);
 
   function atualizarFiltros() {
     const campos = {
@@ -246,11 +280,20 @@
     const dataFim = document.getElementById('dataFim').value;
 
     dadosFiltrados = dados.filter(d => {
-      return (!monitor || d.monitor === monitor) &&
-             (!tipo || d.tipo === tipo) &&
-             (!celula || d.celula === celula) &&
-             (!dataInicio || d.data >= dataInicio) &&
-             (!dataFim || d.data <= dataFim);
+      let dData = d.data.length === 10 ? d.data : '';
+      if (dData) {
+        // compara datas no formato ISO (YYYY-MM-DD)
+        return (!monitor || d.monitor === monitor) &&
+               (!tipo || d.tipo === tipo) &&
+               (!celula || d.celula === celula) &&
+               (!dataInicio || dData >= dataInicio) &&
+               (!dataFim || dData <= dataFim);
+      } else {
+        // Caso não tenha data, ignora filtro de data
+        return (!monitor || d.monitor === monitor) &&
+               (!tipo || d.tipo === tipo) &&
+               (!celula || d.celula === celula);
+      }
     });
 
     desenharGraficos();
@@ -317,13 +360,13 @@
         }]
       },
       options: {
+        indexAxis: 'y', // gráfico horizontal para facilitar leitura
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { stepSize: 1 } }
-        },
-        parsing: false
+          x: { beginAtZero: true, ticks: { stepSize: 1 } }
+        }
       }
     });
 
