@@ -1,25 +1,45 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Painel de Monitorias - CASA</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #121212;
-      color: #fff;
-      margin: 0;
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
       padding: 20px;
     }
     h1 {
       color: #4db8ff;
+      margin-bottom: 10px;
+    }
+    .dashboard {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: #1e1e1e;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px #000;
+      flex: 1;
+      text-align: center;
     }
     .filters {
       display: flex;
       flex-wrap: wrap;
-      gap: 15px;
+      gap: 10px;
       margin-bottom: 20px;
     }
     .filters select, .filters input {
@@ -28,137 +48,204 @@
       border: none;
     }
     canvas {
-      background: #1e1e1e;
-      padding: 10px;
-      border-radius: 8px;
       margin-bottom: 30px;
+      background-color: #1e1e1e;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    table {
+      background-color: #1e1e1e !important;
+      color: white !important;
+      border-radius: 10px;
+    }
+    .dt-button {
+      background-color: #4db8ff !important;
+      color: black !important;
+      border-radius: 5px;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
-  <h1>📊 Painel de Monitorias - CASA</h1>
 
-  <div class="filters">
-    <select id="monitorFilter">
-      <option value="">Todos os Monitores</option>
-    </select>
-    <select id="tipoFilter">
-      <option value="">Todos os Tipos</option>
-    </select>
-    <select id="celulaFilter">
-      <option value="">Todas as Células</option>
-    </select>
-    <input type="date" id="dataInicio">
-    <input type="date" id="dataFim">
-    <button onclick="aplicarFiltros()">Aplicar Filtros</button>
-  </div>
+<h1>📊 Painel de Monitorias - CASA</h1>
 
-  <canvas id="graficoTipo" height="100"></canvas>
-  <canvas id="graficoMonitor" height="100"></canvas>
-  <canvas id="graficoConformidade" height="100"></canvas>
+<div class="dashboard">
+  <div class="card" id="card-total">Total: 0</div>
+  <div class="card" id="card-tipos">Tipos: 0</div>
+  <div class="card" id="card-conformidade">Conformidades: 0</div>
+</div>
 
-  <script>
-    const dados = [
-      {
-        "data": "2025-01-06",
-        "tipo": "Gravação",
-        "celula": "Admissão UJ",
-        "monitor": "Michelle Oliveira dos Santos",
-        "nao_conformidade": "Não",
-        "nota": "-"
-      },
-      {
-        "data": "2025-01-04",
-        "tipo": "Gravação",
-        "celula": "Admissão Uva",
-        "monitor": "Viviane Cesar da Cruz",
-        "nao_conformidade": "Não",
-        "nota": "-"
-      }
-      // ← Aqui você pode substituir pelos dados reais exportados do Excel!
-    ];
+<div class="filters">
+  <select id="monitorFilter"><option value="">Todos os Monitores</option></select>
+  <select id="tipoFilter"><option value="">Todos os Tipos</option></select>
+  <select id="celulaFilter"><option value="">Todas as Células</option></select>
+  <input type="date" id="dataInicio">
+  <input type="date" id="dataFim">
+  <button onclick="aplicarFiltros()">Aplicar Filtros</button>
+</div>
 
-    let dadosFiltrados = [...dados];
+<canvas id="graficoTipo" height="100"></canvas>
+<canvas id="graficoMonitor" height="100"></canvas>
+<canvas id="graficoConformidade" height="100"></canvas>
 
-    function atualizarFiltros() {
-      const monitores = [...new Set(dados.map(d => d.monitor))];
-      const tipos = [...new Set(dados.map(d => d.tipo))];
-      const celulas = [...new Set(dados.map(d => d.celula))];
+<table id="tabela" class="display nowrap" style="width:100%">
+  <thead>
+    <tr>
+      <th>Data</th>
+      <th>Tipo</th>
+      <th>Célula</th>
+      <th>Monitor</th>
+      <th>Conformidade</th>
+      <th>Nota</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
-      const monitorSel = document.getElementById('monitorFilter');
-      const tipoSel = document.getElementById('tipoFilter');
-      const celulaSel = document.getElementById('celulaFilter');
+<script>
+const dados = [
+  {
+    "data": "2025-01-06",
+    "tipo": "Gravação",
+    "celula": "Admissão UJ",
+    "monitor": "Michelle Oliveira dos Santos",
+    "nao_conformidade": "Não",
+    "nota": "-"
+  },
+  {
+    "data": "2025-01-04",
+    "tipo": "Gravação",
+    "celula": "Admissão Uva",
+    "monitor": "Viviane Cesar da Cruz",
+    "nao_conformidade": "Sim",
+    "nota": "5"
+  }
+  // Insira mais dados aqui ou substitua pelo JSON real
+];
 
-      monitores.forEach(m => monitorSel.innerHTML += `<option value="${m}">${m}</option>`);
-      tipos.forEach(t => tipoSel.innerHTML += `<option value="${t}">${t}</option>`);
-      celulas.forEach(c => celulaSel.innerHTML += `<option value="${c}">${c}</option>`);
+let dadosFiltrados = [...dados];
+
+function atualizarFiltros() {
+  const campos = {
+    monitor: new Set(),
+    tipo: new Set(),
+    celula: new Set()
+  };
+  dados.forEach(d => {
+    campos.monitor.add(d.monitor);
+    campos.tipo.add(d.tipo);
+    campos.celula.add(d.celula);
+  });
+
+  for (let [id, values] of Object.entries(campos)) {
+    const sel = document.getElementById(id + "Filter");
+    values.forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
+  }
+}
+
+function aplicarFiltros() {
+  const monitor = document.getElementById('monitorFilter').value;
+  const tipo = document.getElementById('tipoFilter').value;
+  const celula = document.getElementById('celulaFilter').value;
+  const dataInicio = document.getElementById('dataInicio').value;
+  const dataFim = document.getElementById('dataFim').value;
+
+  dadosFiltrados = dados.filter(d => {
+    return (!monitor || d.monitor === monitor) &&
+           (!tipo || d.tipo === tipo) &&
+           (!celula || d.celula === celula) &&
+           (!dataInicio || d.data >= dataInicio) &&
+           (!dataFim || d.data <= dataFim);
+  });
+
+  desenharGraficos();
+  preencherTabela();
+  atualizarCards();
+}
+
+function desenharGraficos() {
+  const ctx1 = document.getElementById("graficoTipo").getContext("2d");
+  const ctx2 = document.getElementById("graficoMonitor").getContext("2d");
+  const ctx3 = document.getElementById("graficoConformidade").getContext("2d");
+
+  if (window.chart1) chart1.destroy();
+  if (window.chart2) chart2.destroy();
+  if (window.chart3) chart3.destroy();
+
+  const tipo = contar("tipo");
+  const monitor = contar("monitor");
+  const conf = contar("nao_conformidade");
+
+  chart1 = new Chart(ctx1, {
+    type: "bar",
+    data: {
+      labels: Object.keys(tipo),
+      datasets: [{ label: "Por Tipo", data: Object.values(tipo), backgroundColor: "#4db8ff" }]
     }
+  });
 
-    function aplicarFiltros() {
-      const monitor = document.getElementById('monitorFilter').value;
-      const tipo = document.getElementById('tipoFilter').value;
-      const celula = document.getElementById('celulaFilter').value;
-      const dataInicio = document.getElementById('dataInicio').value;
-      const dataFim = document.getElementById('dataFim').value;
-
-      dadosFiltrados = dados.filter(d => {
-        return (!monitor || d.monitor === monitor) &&
-               (!tipo || d.tipo === tipo) &&
-               (!celula || d.celula === celula) &&
-               (!dataInicio || d.data >= dataInicio) &&
-               (!dataFim || d.data <= dataFim);
-      });
-
-      desenharGraficos();
+  chart2 = new Chart(ctx2, {
+    type: "bar",
+    data: {
+      labels: Object.keys(monitor),
+      datasets: [{ label: "Por Monitor", data: Object.values(monitor), backgroundColor: "#4ddb4d" }]
     }
+  });
 
-    function desenharGraficos() {
-      const ctx1 = document.getElementById("graficoTipo").getContext("2d");
-      const ctx2 = document.getElementById("graficoMonitor").getContext("2d");
-      const ctx3 = document.getElementById("graficoConformidade").getContext("2d");
-
-      if (window.chart1) window.chart1.destroy();
-      if (window.chart2) window.chart2.destroy();
-      if (window.chart3) window.chart3.destroy();
-
-      const porTipo = contarPorCampo("tipo");
-      const porMonitor = contarPorCampo("monitor");
-      const porConformidade = contarPorCampo("nao_conformidade");
-
-      window.chart1 = new Chart(ctx1, {
-        type: "bar",
-        data: {
-          labels: Object.keys(porTipo),
-          datasets: [{ label: "Monitorias por Tipo", data: Object.values(porTipo), backgroundColor: "#4db8ff" }]
-        }
-      });
-
-      window.chart2 = new Chart(ctx2, {
-        type: "bar",
-        data: {
-          labels: Object.keys(porMonitor),
-          datasets: [{ label: "Monitorias por Monitor", data: Object.values(porMonitor), backgroundColor: "#4ddb4d" }]
-        }
-      });
-
-      window.chart3 = new Chart(ctx3, {
-        type: "pie",
-        data: {
-          labels: Object.keys(porConformidade),
-          datasets: [{ label: "Conformidade", data: Object.values(porConformidade), backgroundColor: ["#ff6666", "#66ff66", "#cccccc"] }]
-        }
-      });
+  chart3 = new Chart(ctx3, {
+    type: "pie",
+    data: {
+      labels: Object.keys(conf),
+      datasets: [{ data: Object.values(conf), backgroundColor: ["#ff6666", "#66ff66", "#cccccc"] }]
     }
+  });
+}
 
-    function contarPorCampo(campo) {
-      return dadosFiltrados.reduce((acc, obj) => {
-        acc[obj[campo]] = (acc[obj[campo]] || 0) + 1;
-        return acc;
-      }, {});
-    }
+function contar(campo) {
+  return dadosFiltrados.reduce((acc, d) => {
+    acc[d[campo]] = (acc[d[campo]] || 0) + 1;
+    return acc;
+  }, {});
+}
 
-    atualizarFiltros();
-    aplicarFiltros();
-  </script>
+function preencherTabela() {
+  const tbody = document.querySelector("#tabela tbody");
+  tbody.innerHTML = "";
+  dadosFiltrados.forEach(d => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${d.data}</td>
+        <td>${d.tipo}</td>
+        <td>${d.celula}</td>
+        <td>${d.monitor}</td>
+        <td>${d.nao_conformidade}</td>
+        <td>${d.nota}</td>
+      </tr>`;
+  });
+
+  if ($.fn.DataTable.isDataTable('#tabela')) {
+    $('#tabela').DataTable().clear().destroy();
+  }
+
+  $('#tabela').DataTable({
+    dom: 'Bfrtip',
+    buttons: ['excelHtml5'],
+    paging: true,
+    responsive: true
+  });
+}
+
+function atualizarCards() {
+  document.getElementById('card-total').textContent = `Total: ${dadosFiltrados.length}`;
+  document.getElementById('card-tipos').textContent = `Tipos: ${new Set(dadosFiltrados.map(d => d.tipo)).size}`;
+  document.getElementById('card-conformidade').textContent = `Conformidades: ${contar("nao_conformidade")["Sim"] || 0}`;
+}
+
+// Inicialização
+atualizarFiltros();
+aplicarFiltros();
+</script>
+
 </body>
 </html>
