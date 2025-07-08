@@ -112,19 +112,26 @@
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-      const padronizar = (obj) => {
-        const novo = {};
-        for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
-          for (const s of sinonimos) {
-            const encontrada = Object.keys(obj).find(k => k.trim().toLowerCase() === s);
-            if (encontrada) {
-              novo[chavePadrao] = obj[encontrada];
-              break;
-            }
-          }
-        }
-        return novo;
-      };
+      const normalizar = str => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+const padronizar = (obj) => {
+  const novo = {};
+  const chavesNormalizadas = Object.fromEntries(
+    Object.keys(obj).map(k => [normalizar(k), k])
+  );
+
+  for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
+    for (const s of sinonimos) {
+      const chaveOriginal = chavesNormalizadas[normalizar(s)];
+      if (chaveOriginal) {
+        novo[chavePadrao] = obj[chaveOriginal];
+        break;
+      }
+    }
+  }
+
+  return novo;
+};
 
       dados = json.map(padronizar).filter(d => d.data && d.tipo && d.monitor);
 
