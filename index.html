@@ -63,6 +63,11 @@
     <button onclick="aplicarFiltros()">Aplicar Filtros</button>
   </div>
 
+  <!-- Novos gráficos para sua solicitação -->
+  <canvas id="graficoMonitorResponsavel" style="height: 350px;"></canvas>
+  <canvas id="graficoConcordanciaFeedback" style="height: 350px;"></canvas>
+  <canvas id="graficoMediaNota" style="height: 350px;"></canvas>
+
   <canvas id="graficoTipo"></canvas>
   <canvas id="graficoMonitor"></canvas>
   <canvas id="graficoConformidade"></canvas>
@@ -95,7 +100,8 @@
   let dados = [];
   let dadosFiltrados = [];
   let arquivoSelecionado = null;
-  let chart1, chart2, chart3;
+  let chartTipo, chartMonitor, chartConformidade;
+  let chartMonitorResponsavel, chartConcordanciaFeedback, chartMediaNota;
 
   document.getElementById('btnSelecionarArquivo').addEventListener('click', () => {
     document.getElementById('fileInput').click();
@@ -180,21 +186,200 @@
     const di = document.getElementById('dataInicio').value;
     const df = document.getElementById('dataFim').value;
     dadosFiltrados = dados.filter(d => (!m || d.monitor === m) && (!t || d.tipo === t) && (!c || d.celula === c) && (!di || d.data >= di) && (!df || d.data <= df));
-    desenharGraficos(); preencherTabela(); atualizarCards();
+    desenharGraficos();
+    preencherTabela();
+    atualizarCards();
+  }
+
+  // Função para contar ocorrências por campo
+  function contar(campo) {
+    return dadosFiltrados.reduce((acc, d) => {
+      acc[d[campo]] = (acc[d[campo]] || 0) + 1;
+      return acc;
+    }, {});
+  }
+
+  // Função para calcular média da nota final agrupada em faixas %
+  function calcularMediaPorFaixa() {
+    // Faixas de nota (0-20, 21-40, 41-60, 61-80, 81-100)
+    const faixas = [
+      { label: '0-20%', min: 0, max: 20, total: 0, count: 0 },
+      { label: '21-40%', min: 21, max: 40, total: 0, count: 0 },
+      { label: '41-60%', min: 41, max: 60, total: 0, count: 0 },
+      { label: '61-80%', min: 61, max: 80, total: 0, count: 0 },
+      { label: '81-100%', min: 81, max: 100, total: 0, count: 0 }
+    ];
+
+    dadosFiltrados.forEach(d => {
+      let nota = Number(d.nota);
+      if (!isNaN(nota)) {
+        const faixa = faixas.find(f => nota >= f.min && nota <= f.max);
+        if (faixa) {
+          faixa.total += nota;
+          faixa.count++;
+        }
+      }
+    });
+
+    const labels = [];
+    const medias = [];
+    faixas.forEach(f => {
+      labels.push(f.label);
+      medias.push(f.count ? (f.total / f.count).toFixed(2) : 0);
+    });
+
+    return { labels, medias };
   }
 
   function desenharGraficos() {
-    const ctx1 = document.getElementById('graficoTipo').getContext('2d');
-    const ctx2 = document.getElementById('graficoMonitor').getContext('2d');
-    const ctx3 = document.getElementById('graficoConformidade').getContext('2d');
-    if (chart1) chart1.destroy(); if (chart2) chart2.destroy(); if (chart3) chart3.destroy();
-    const tipo = contar('tipo'); const monitor = contar('monitor'); const conf = contar('nao_conformidade');
-    chart1 = new Chart(ctx1, { type: 'bar', data: { labels: Object.keys(tipo), datasets: [{ label: 'Por Tipo', data: Object.values(tipo), backgroundColor: '#4db8ff' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
-    chart2 = new Chart(ctx2, { type: 'bar', data: { labels: Object.keys(monitor), datasets: [{ label: 'Por Monitor', data: Object.values(monitor), backgroundColor: '#4ddb4d' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
-    chart3 = new Chart(ctx3, { type: 'doughnut', data: { labels: Object.keys(conf), datasets: [{ data: Object.values(conf), backgroundColor: ['#ff4c4c', '#4cff4c', '#999999'] }] }, options: { responsive: true, maintainAspectRatio: false } });
-  }
+    // Apaga gráficos antigos se existirem
+    if (chartTipo) chartTipo.destroy();
+    if (chartMonitor) chartMonitor.destroy();
+    if (chartConformidade) chartConformidade.destroy();
+    if (chartMonitorResponsavel) chartMonitorResponsavel.destroy();
+    if (chartConcordanciaFeedback) chartConcordanciaFeedback.destroy();
+    if (chartMediaNota) chartMediaNota.destroy();
 
-  function contar(campo) { return dadosFiltrados.reduce((acc, d) => { acc[d[campo]] = (acc[d[campo]] || 0) + 1; return acc; }, {}); }
+    // Contagens para gráficos existentes
+    const tipo = contar('tipo');
+    const monitor = contar('monitor');
+    const conf = contar('nao_conformidade');
+
+    // Novo gráfico: Quantidade de monitorias por Nome e responsável - cargo
+    // Construir mapa: chave = "Nome - Célula" (monitor + " - " + celula)
+    const monitorResponsavelMap = {};
+    dadosFiltrados.forEach(d => {
+      const chave = `${d.monitor} - ${d.celula || 'Sem Célula'}`;
+      monitorResponsavelMap[chave] = (monitorResponsavelMap[chave] || 0) + 1;
+    });
+
+    // Novo gráfico: Quantidade de colaboradores que concordam ou não com feedback
+    const concordanciaCount = { 'Sim': 0, 'Não': 0, 'Outro': 0 };
+    dadosFiltrados.forEach(d => {
+      const val = (d.nao_conformidade || '').toString().toLowerCase();
+      if (val === 'sim') concordanciaCount['Sim']++;
+      else if (val === 'não' || val === 'nao') concordanciaCount['Não']++;
+      else concordanciaCount['Outro']++;
+    });
+
+    // Novo gráfico: Média de nota final por faixa
+    const mediaFaixa = calcularMediaPorFaixa();
+
+    // Gráfico Tipo (barra vertical)
+    const ctxTipo = document.getElementById('graficoTipo').getContext('2d');
+    chartTipo = new Chart(ctxTipo, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(tipo),
+        datasets: [{
+          label: 'Quantidade por Tipo',
+          data: Object.values(tipo),
+          backgroundColor: '#4db8ff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
+      }
+    });
+
+    // Gráfico Monitor (barra vertical)
+    const ctxMonitor = document.getElementById('graficoMonitor').getContext('2d');
+    chartMonitor = new Chart(ctxMonitor, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(monitor),
+        datasets: [{
+          label: 'Quantidade por Monitor',
+          data: Object.values(monitor),
+          backgroundColor: '#4ddb4d'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision:0 } } }
+      }
+    });
+
+    // Gráfico Conformidade (doughnut)
+    const ctxConf = document.getElementById('graficoConformidade').getContext('2d');
+    chartConformidade = new Chart(ctxConf, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(conf),
+        datasets: [{
+          data: Object.values(conf),
+          backgroundColor: ['#ff4c4c', '#4cff4c', '#999999']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+      }
+    });
+
+    // Gráfico 1: Quantidade de monitorias por Nome e responsável - cargo (barra horizontal)
+    const ctxMR = document.getElementById('graficoMonitorResponsavel').getContext('2d');
+    chartMonitorResponsavel = new Chart(ctxMR, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(monitorResponsavelMap),
+        datasets: [{
+          label: 'Monitorias (Nome - Cargo)',
+          data: Object.values(monitorResponsavelMap),
+          backgroundColor: '#4db8ff'
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { precision:0 } } }
+      }
+    });
+
+    // Gráfico 2: Concordância com feedback (pizza)
+    const ctxCF = document.getElementById('graficoConcordanciaFeedback').getContext('2d');
+    chartConcordanciaFeedback = new Chart(ctxCF, {
+      type: 'pie',
+      data: {
+        labels: Object.keys(concordanciaCount),
+        datasets: [{
+          data: Object.values(concordanciaCount),
+          backgroundColor: ['#4caf50', '#f44336', '#999999']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+      }
+    });
+
+    // Gráfico 3: Média de nota final por faixa (barra vertical)
+    const ctxMN = document.getElementById('graficoMediaNota').getContext('2d');
+    chartMediaNota = new Chart(ctxMN, {
+      type: 'bar',
+      data: {
+        labels: mediaFaixa.labels,
+        datasets: [{
+          label: 'Média da Nota Final',
+          data: mediaFaixa.medias,
+          backgroundColor: '#2196f3'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+  }
 
   function preencherTabela() {
     const tbody = document.querySelector('#tabela tbody');
