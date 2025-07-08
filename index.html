@@ -27,8 +27,8 @@
     .dt-button { background-color: #4db8ff !important; color: black !important; border-radius: 5px; margin-bottom: 10px; font-weight: bold; }
     #contentArea { display: none; }
     #message { margin-top: 30px; font-size: 1.2rem; color: #999999; text-align: center; font-style: italic; }
-    #loadingBar { display: none; height: 25px; width: 100%; background-color: #333; border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
-    #loadingProgress { height: 100%; width: 0%; background-color: #4db8ff; text-align: center; line-height: 25px; color: black; font-weight: bold; }
+    #progressContainer { width: 100%; background: #333; border-radius: 10px; overflow: hidden; display: none; margin-top: 20px; height: 25px; }
+    #progressBar { height: 100%; width: 0; background: linear-gradient(90deg, #4db8ff, #2ecc71); color: #fff; text-align: center; line-height: 25px; font-weight: bold; transition: width 0.2s ease-in-out; }
   </style>
 </head>
 <body>
@@ -41,7 +41,10 @@
   <input type="file" id="fileInput" accept=".xlsx,.xls" />
 </div>
 
-<div id="loadingBar"><div id="loadingProgress">0%</div></div>
+<div id="progressContainer">
+  <div id="progressBar">0%</div>
+</div>
+
 <div id="message">Carregue a planilha Excel (.xls ou .xlsx) para visualizar os dados.</div>
 
 <div id="contentArea">
@@ -89,25 +92,6 @@
     nota: ['nota final', 'nota', 'pontuação']
   };
 
-  const normalizar = str => str.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
-  const padronizar = (obj) => {
-    const novo = {};
-    const chavesNormalizadas = Object.fromEntries(
-      Object.keys(obj).map(k => [normalizar(k), k])
-    );
-
-    for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
-      for (const s of sinonimos) {
-        const chaveOriginal = chavesNormalizadas[normalizar(s)];
-        if (chaveOriginal) {
-          novo[chavePadrao] = obj[chaveOriginal];
-          break;
-        }
-      }
-    }
-    return novo;
-  };
-
   let dados = [];
   let dadosFiltrados = [];
   let arquivoSelecionado = null;
@@ -128,49 +112,54 @@
   document.getElementById('btnCarregarArquivo').addEventListener('click', () => {
     if (!arquivoSelecionado) return alert('Selecione um arquivo primeiro.');
 
-    const progressBar = document.getElementById('loadingProgress');
-    document.getElementById('loadingBar').style.display = 'block';
-    progressBar.style.width = '0%';
-    progressBar.textContent = '0%';
-
     const reader = new FileReader();
+    reader.onloadstart = () => {
+      document.getElementById('progressContainer').style.display = 'block';
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('progressBar').textContent = '0%';
+    };
+
     reader.onload = (e) => {
       const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const jsonFull = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-      const total = Math.min(rawData.length, 5000);
-      const batchSize = 100;
-      let start = 0;
-      dados = [];
+      const json = jsonFull.slice(0, 5000);
+      const normalizar = str => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-      function processarLote() {
-        const end = Math.min(start + batchSize, total);
-        for (let i = start; i < end; i++) {
-          dados.push(padronizar(rawData[i]));
+      const padronizar = (obj) => {
+        const novo = {};
+        const chavesNormalizadas = Object.fromEntries(Object.keys(obj).map(k => [normalizar(k), k]));
+        for (const [chavePadrao, sinonimos] of Object.entries(colunasPadrao)) {
+          for (const s of sinonimos) {
+            const chaveOriginal = chavesNormalizadas[normalizar(s)];
+            if (chaveOriginal) {
+              novo[chavePadrao] = obj[chaveOriginal];
+              break;
+            }
+          }
         }
-        const percent = Math.floor((end / total) * 100);
-        progressBar.style.width = `${percent}%`;
-        progressBar.textContent = `${percent}%`;
+        return novo;
+      };
 
-        start += batchSize;
-        if (start < total) {
-          setTimeout(processarLote, 10);
-        } else {
-          setTimeout(() => {
-            document.getElementById('loadingBar').style.display = 'none';
-            document.getElementById('contentArea').style.display = 'block';
-            document.getElementById('message').style.display = 'none';
-            document.getElementById('btnCarregarArquivo').disabled = true;
-            atualizarFiltros();
-            aplicarFiltros();
-            alert('Arquivo carregado com sucesso!');
-          }, 200);
-        }
-      }
+      dados = json.map((item, idx) => {
+        const percent = Math.round((idx + 1) / json.length * 100);
+        document.getElementById('progressBar').style.width = percent + '%';
+        document.getElementById('progressBar').textContent = percent + '%';
+        return padronizar(item);
+      }).filter(d => d.data && d.tipo && d.monitor);
 
-      processarLote();
+      setTimeout(() => {
+        atualizarFiltros();
+        aplicarFiltros();
+        document.getElementById('contentArea').style.display = 'block';
+        document.getElementById('message').style.display = 'none';
+        document.getElementById('progressContainer').style.display = 'none';
+        document.getElementById('btnCarregarArquivo').disabled = true;
+        alert('Arquivo carregado com sucesso!');
+      }, 200);
     };
+
     reader.readAsArrayBuffer(arquivoSelecionado);
   });
 
